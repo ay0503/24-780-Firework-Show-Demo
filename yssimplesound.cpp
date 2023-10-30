@@ -139,8 +139,8 @@ void YsSoundPlayer::PreparePlay(SoundData &dat)
 	}
 	else if(dat.playerStatePtr!=this->playerStatePtr)
 	{
-		printf("%s %d\n",__FUNCTION__,__LINE__);
-		printf("  YsSoundPlayer::SoundData can be associated with only one player.\n");
+		// printf("%s %d\n",__FUNCTION__,__LINE__);
+		// printf("  YsSoundPlayer::SoundData can be associated with only one player.\n");
 		return;
 	}
 	dat.PreparePlay(*this);
@@ -421,7 +421,7 @@ YSRESULT YsSoundPlayer::SoundData::CreateFromSigned16bitStereo(unsigned int samp
 YSRESULT YsSoundPlayer::SoundData::LoadWav(const char fn[])
 {
 	FILE *fp;
-	printf("Loading %s\n",fn);
+	// printf("Loading %s\n",fn);
 	fp=fopen(fn,"rb");
 	if(fp!=NULL)
 	{
@@ -464,55 +464,55 @@ YSRESULT YsSoundPlayer::SoundData::LoadWav(BinaryInStream &inStream)
 
 	if(inStream.Fetch(buf,4)!=4)
 	{
-		printf("Error in reading RIFF.\n");
+		// printf("Error in reading RIFF.\n");
 		return YSERR;
 	}
 	if(strncmp((char *)buf,"RIFF",4)!=0)
 	{
-		printf("Warning: RIFF not found.\n");
+		// printf("Warning: RIFF not found.\n");
 	}
 
 
 	if(inStream.Fetch(buf,4)!=4)
 	{
-		printf("Error in reading file size.\n");
+		// printf("Error in reading file size.\n");
 		return YSERR;
 	}
 	fSize=GetUnsigned(buf);
-	printf("File Size=%d\n",fSize+8);
+	// printf("File Size=%d\n",fSize+8);
 	// Wait, is it fSize+12?  A new theory tells that "fmt " immediately following "WAVE"
 	// is a chunk???
 
 	if(inStream.Fetch(buf,8)!=8)
 	{
-		printf("Error in reading WAVEfmt.\n");
+		// printf("Error in reading WAVEfmt.\n");
 		return YSERR;
 	}
 	if(strncmp((char *)buf,"WAVEfmt",7)!=0)
 	{
-		printf("Warning: WAVEfmt not found\n");
+		// printf("Warning: WAVEfmt not found\n");
 	}
 
 
 	if(inStream.Fetch(buf,4)!=4)
 	{
-		printf("Error in reading header size.\n");
+		// printf("Error in reading header size.\n");
 		return YSERR;
 	}
 	hdrSize=GetUnsigned(buf);
-	printf("Header Size=%d\n",hdrSize);
+	// printf("Header Size=%d\n",hdrSize);
 
 
-	//    WORD  wFormatTag; 
-	//    WORD  nChannels; 
-	//    DWORD nSamplesPerSec; 
-	//    DWORD nAvgBytesPerSec; 
-	//    WORD  nBlockAlign; 
-	//    WORD  wBitsPerSample; 
-	//    WORD  cbSize; 
+	//    WORD  wFormatTag;
+	//    WORD  nChannels;
+	//    DWORD nSamplesPerSec;
+	//    DWORD nAvgBytesPerSec;
+	//    WORD  nBlockAlign;
+	//    WORD  wBitsPerSample;
+	//    WORD  cbSize;
 	if(inStream.Fetch(buf,hdrSize)!=hdrSize)
 	{
-		printf("Error in reading header.\n");
+		// printf("Error in reading header.\n");
 		return YSERR;
 	}
 	wFormatTag=GetUnsignedShort(buf);
@@ -523,13 +523,13 @@ YSRESULT YsSoundPlayer::SoundData::LoadWav(BinaryInStream &inStream)
 	wBitsPerSample=(hdrSize>=16 ? GetUnsignedShort(buf+14) : 0);
 	cbSize=(hdrSize>=18 ? GetUnsignedShort(buf+16) : 0);
 
-	printf("wFormatTag=%d\n",wFormatTag);
-	printf("nChannels=%d\n",nChannels);
-	printf("nSamplesPerSec=%d\n",nSamplesPerSec);
-	printf("nAvgBytesPerSec=%d\n",nAvgBytesPerSec);
-	printf("nBlockAlign=%d\n",nBlockAlign);
-	printf("wBitsPerSample=%d\n",wBitsPerSample);
-	printf("cbSize=%d\n",cbSize);
+	// printf("wFormatTag=%d\n",wFormatTag);
+	// printf("nChannels=%d\n",nChannels);
+	// printf("nSamplesPerSec=%d\n",nSamplesPerSec);
+	// printf("nAvgBytesPerSec=%d\n",nAvgBytesPerSec);
+	// printf("nBlockAlign=%d\n",nBlockAlign);
+	// printf("wBitsPerSample=%d\n",wBitsPerSample);
+	// printf("cbSize=%d\n",cbSize);
 
 
 
@@ -537,7 +537,7 @@ YSRESULT YsSoundPlayer::SoundData::LoadWav(BinaryInStream &inStream)
 	{
 		if(inStream.Fetch(buf,4)!=4)
 		{
-			printf("Error while waiting for data.\n");
+			// printf("Error while waiting for data.\n");
 			return YSERR;
 		}
 
@@ -548,10 +548,10 @@ YSRESULT YsSoundPlayer::SoundData::LoadWav(BinaryInStream &inStream)
 		}
 		else
 		{
-			printf("Skipping %c%c%c%c (Unknown Block)\n",buf[0],buf[1],buf[2],buf[3]);
+			// printf("Skipping %c%c%c%c (Unknown Block)\n",buf[0],buf[1],buf[2],buf[3]);
 			if(inStream.Fetch(buf,4)!=4)
 			{
-				printf("Error while skipping unknown block.\n");
+				// printf("Error while skipping unknown block.\n");
 				return YSERR;
 			}
 
@@ -560,7 +560,7 @@ YSRESULT YsSoundPlayer::SoundData::LoadWav(BinaryInStream &inStream)
 			l=GetUnsigned(buf);
 			if(inStream.Skip(l)!=l)
 			{
-				printf("Error while skipping unknown block.\n");
+				// printf("Error while skipping unknown block.\n");
 				return YSERR;
 			}
 		}
@@ -569,17 +569,17 @@ YSRESULT YsSoundPlayer::SoundData::LoadWav(BinaryInStream &inStream)
 
 	if(inStream.Fetch(buf,4)!=4)
 	{
-		printf("Error in reading data size.\n");
+		// printf("Error in reading data size.\n");
 		return YSERR;
 	}
 	dataSize=GetUnsigned(buf);
-	printf("Data Size=%d (0x%x)\n",dataSize,dataSize);
+	// printf("Data Size=%d (0x%x)\n",dataSize,dataSize);
 
 	dat.resize(dataSize);
 	if((l=inStream.Fetch(dat.data(),dataSize))!=dataSize)
 	{
-		printf("Warning: File ended before reading all data.\n");
-		printf("  %d (0x%x) bytes have been read\n",l,l);
+		// printf("Warning: File ended before reading all data.\n");
+		// printf("  %d (0x%x) bytes have been read\n",l,l);
 	}
 
 	this->stereo=(nChannels==2 ? YSTRUE : YSFALSE);
@@ -1364,7 +1364,7 @@ void YsSoundPlayer::APISpecificData::CleanUp(void)
 
 	{
 
-		printf("Ending AVAudioEngine.\n");
+		// printf("Ending AVAudioEngine.\n");
 
 		YsSimpleSound_OSX_DeleteAudioEngine(enginePtr);
 
@@ -1384,7 +1384,7 @@ YSRESULT YsSoundPlayer::APISpecificData::Start(void)
 
 	{
 
-		printf("Starting AVAudioEngine.\n");
+		// printf("Starting AVAudioEngine.\n");
 
 		enginePtr=YsSimpleSound_OSX_CreateAudioEngine();
 

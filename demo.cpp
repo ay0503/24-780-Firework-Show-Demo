@@ -19,6 +19,8 @@ using namespace std;
 
 const int WIDTH = 1024;
 const int HEIGHT = 768;
+const float VOLUME = 0.1;
+const int NUM_STARS = 50;
 const int MAX_TRAIL_PARTICLES = 1000;
 const double PI = 3.1415927;
 
@@ -32,9 +34,6 @@ private:
   float r, g, b;
 
 public:
-  // Default constructor sets a white color
-  Color() : r(1.0f), g(1.0f), b(1.0f) {}
-
   // Parameterized constructor for setting specific RGB values
   Color(float r, float g, float b) : r(r), g(g), b(b) {}
 
@@ -111,6 +110,10 @@ private:
   bool hasBurst = false;
 
   deque<TrailParticle> trailParticles;
+  vector<Particle> secondaryParticles;
+  bool hasSecondaryBurst = false;
+  bool shouldBurstTwice = false;
+  int timeSincePrimaryBurst = 0;
 
   // Color of the particle
   float r, g, b;
@@ -134,7 +137,7 @@ public:
 
   double getAlpha() const { return a; }
 
-  // void
+  void ScheduleBurst() { shouldBurstTwice = true; }
 
   // Update the particle's physics and visual properties
   void Update() {
@@ -149,6 +152,10 @@ public:
 
     if (!burst && !hasBurst && vy >= 0) {
       hasBurst = true;
+    }
+
+    if (shouldBurstTwice) {
+      UpdateSecondaryBurst();
     }
 
     if (burst || !hasBurst) {
@@ -168,9 +175,38 @@ public:
     }
   }
 
+  void UpdateSecondaryBurst() {
+    if (!hasSecondaryBurst && timeSincePrimaryBurst >= 60) {
+      // Create secondary particles
+      const int numParticles = 6; // Modify as needed
+      double angleBetweenParticles = 2 * PI / numParticles;
+      const double initialSpeed = 0.5;
+
+      for (int i = 0; i < numParticles; ++i) {
+        double angle = i * angleBetweenParticles;
+        double vx = initialSpeed * cos(angle);
+        double vy = initialSpeed * sin(angle);
+
+        Particle secondary(x, y, vx, vy, r, g, b, true);
+        secondaryParticles.push_back(secondary);
+      }
+      hasSecondaryBurst = true;
+    }
+    for (auto &secondary : secondaryParticles) {
+      secondary.Update();
+    }
+    timeSincePrimaryBurst++;
+  }
+
   void Fade(int repeat = 1) {
     for (int i = 0; i < repeat; ++i) {
       a -= fadeSpeed;
+    }
+  }
+
+  void drawSecondary() {
+    for (auto &secondary : secondaryParticles) {
+      secondary.draw();
     }
   }
 
@@ -195,58 +231,104 @@ class Firework {
 private:
   Particle mainParticle;           // The main particle before the burst
   vector<Particle> burstParticles; // Particles created during the burst
-  YsSoundPlayer::SoundData hissSound, burstSound;
-  YsSoundPlayer player;
+  YsSoundPlayer &player;
+  YsSoundPlayer::SoundData burstSound;
 
   int particleTimer = 0;
   bool hasBurst = false;
+  bool shouldBurstTwice = false;
+  bool secondaryBurstDone = false;
+  int timeSinceBurst = 0;
   float r, g, b;
 
 public:
   Firework(double startX, double startY, double startVx, double startVy,
-           float r, float g, float b)
-      : r(r), g(g), b(b),
+           float r, float g, float b, YsSoundPlayer &player,
+           bool shouldBurstTwice = false)
+      : r(r), g(g), b(b), player(player), shouldBurstTwice(shouldBurstTwice),
         mainParticle(startX, startY, startVx, startVy, r, g, b) {
-          hissSound.LoadWav("hiss.wav");
-          burstSound.LoadWav("burst.wav");
-        }
+    burstSound.LoadWav("burst.wav");
+    player.SetVolume(burstSound, VOLUME);
+  }
 
   void Update() {
     mainParticle.Update();
     if (!hasBurst && mainParticle.getVy() >= 0) {
-      int choice =
-          rand() % 1; // 0 for normal, 1 for spiral, 2 for chrysanthemum
+      player.PlayOneShot(burstSound);
+      int choice = rand() % 4;
       switch (choice) {
       case 0:
-        Burst();
+        cout << "normal" << endl;
+        Burst(); // normal
         break;
       case 1:
-        Burst();
+        cout << "chrysanthemum" << endl;
+        Burst(); // chrysanthemum
         hasBurst = false;
-        break; // Reuse Burst() for initial chrysanthemum burst
+        break;
       case 2:
-        BurstSpiral();
+        cout << "spiral" << endl;
+        BurstSpiral(); // spiral
+        break;
+      case 3:
+        cout << "delayed second" << endl;
+        BurstTwice(); // spiral
         break;
       }
       hasBurst = true;
     }
-
-    for (auto it = burstParticles.begin(); it != burstParticles.end();) {
-      it->Update();
-      ++it;
+    for (auto &particle : burstParticles) {
+      particle.Update();
+      if (shouldBurstTwice) {
+        particle.UpdateSecondaryBurst();
+      }
     }
 
     // Handle post-burst logic like removing dead particles
     particleTimer++;
   }
 
-  void BurstSpiral() {
-    const int numParticles = 50; // Increase the number for more density
-    const double initialSpeed = 1.0;
+  void BurstParticles(int numParticles, double initialSpeed) {
     double angleBetweenParticles = 2 * PI / numParticles;
+    int angleRandomness = 2 * PI / 90; // 10 degrees randomness
+
+    float burstR =
+        r + (1.0f - r) * 0.5f; // Brightness adjustment can be customized
+    float burstG = g + (1.0f - g) * 0.5f;
+    float burstB = b + (1.0f - b) * 0.5f;
 
     for (int i = 0; i < numParticles; ++i) {
-      double angle = i * angleBetweenParticles;
+      double angle = i * angleBetweenParticles +
+                     (rand() % angleRandomness - angleRandomness / 2);
+      double vx = initialSpeed * cos(angle);
+      double vy = initialSpeed * sin(angle);
+
+      Particle burstParticle(mainParticle.getX(), mainParticle.getY(), vx, vy,
+                             burstR, burstG, burstB, true);
+      burstParticles.push_back(burstParticle);
+    }
+  }
+
+  void Burst() {
+    BurstParticles(12, 1.0); // 12 particles with speed 1.0
+  }
+
+  void BurstTwice() {
+    Burst();
+    for (auto &particle : burstParticles) {
+      particle.ScheduleBurst();
+    }
+  }
+
+  void BurstSpiral() {
+    const int numParticles = 12; // Increase the number for more density
+    const double initialSpeed = 1.0;
+    double angleBetweenParticles = 2 * PI / numParticles;
+    int angleRandomness = 2 * PI / 90; // 10 degrees randomness
+
+    for (int i = 0; i < numParticles; ++i) {
+      double angle = i * angleBetweenParticles +
+                     (rand() % angleRandomness - angleRandomness / 2);
 
       // Radial velocities (outward)
       double vx = initialSpeed * cos(angle);
@@ -280,34 +362,11 @@ public:
     }
   }
 
-  void Burst() {
-    const int numParticles = 12;
-    burstParticles.reserve(burstParticles.size() + numParticles);
-    const double initialSpeed = 1.0; // Adjust this value based on your needs
-    double angleBetweenParticles = 2 * PI / numParticles; // Angle in radians
-    int angleRandomness = 2 * PI / 90; // 10 degrees randomness
-
-    float burstR =
-        r + (1.0f - r) * 0.5f; // This makes the red component 50% brighter
-    float burstG = g + (1.0f - g) * 0.5f; // Similarly for green
-    float burstB = b + (1.0f - b) * 0.5f; // And blue
-
-    for (int i = 0; i < numParticles; ++i) {
-      double angle = i * angleBetweenParticles +
-                     (rand() % angleRandomness - angleRandomness / 2);
-      double vx = initialSpeed * cos(angle);
-      double vy = initialSpeed * sin(angle);
-
-      Particle burstParticle(mainParticle.getX(), mainParticle.getY(), vx, vy,
-                             burstR, burstG, burstB, true);
-      burstParticles.push_back(burstParticle);
-    }
-  }
-
   void draw() {
     mainParticle.draw();
     for (auto &particle : burstParticles) {
       particle.draw();
+      particle.drawSecondary();
     }
   }
 };
@@ -343,29 +402,38 @@ public:
 
 class Game {
 private:
-  vector<Firework> fireworks;
+  vector<Firework *> fireworks;
   vector<Star> stars;
+  vector<Color> fireworkColors;
+  YsSoundPlayer player;
+  YsSoundPlayer::SoundData hissSound;
   int timeElapsed = 0;
-
-  vector<Color> fireworkColors = {
-      Color(1.0f, 0.5f, 0.5f), // Reddish
-      Color(0.5f, 1.0f, 0.5f), // Greenish
-      Color(0.5f, 0.5f, 1.0f), // Bluish
-      Color(1.0f, 0.5f, 1.0f), // Purple
-      Color(1.0f, 1.0f, 0.5f)  // Yellow
-  };
 
 public:
   Game() {
+    addFireworkColors();
     addRandomFireworks(4);
-    stars.reserve(50);
-    for (int i = 0; i < 50; ++i) {
+    stars.reserve(NUM_STARS);
+    for (int i = 0; i < NUM_STARS; ++i) {
       double x = rand() % WIDTH;  // Random x position
       double y = rand() % HEIGHT; // Random y position
       float brightness =
           (rand() % 100) / 100.0f; // Random brightness between 0 and 1
       stars.push_back(Star(x, y, brightness));
     }
+    hissSound.LoadWav("hiss.wav");
+    player.SetVolume(hissSound, VOLUME);
+    player.Start();
+    player.PlayOneShot(hissSound);
+    cout << "Game initialized" << endl;
+  }
+
+  void addFireworkColors() {
+    fireworkColors.push_back(Color(1.0f, 0.5f, 0.5f)); // Reddish
+    fireworkColors.push_back(Color(0.5f, 1.0f, 0.5f)); // Greenish
+    fireworkColors.push_back(Color(0.5f, 0.5f, 1.0f)); // Bluish
+    fireworkColors.push_back(Color(1.0f, 0.5f, 1.0f)); // Purple
+    fireworkColors.push_back(Color(1.0f, 1.0f, 0.5f)); // Yellow
   }
 
   void addRandomFireworks(int count) {
@@ -388,21 +456,21 @@ public:
       double startVy =
           -2.5 -
           (rand() % 100 / 100.0); // Random velocity for y in range [-3, -4]
-      fireworks.push_back(Firework(startX, HEIGHT, startVx, startVy,
-                                   color.getR(), color.getG(), color.getB()));
+      fireworks.push_back(new Firework(startX, HEIGHT, startVx, startVy,
+                                       color.getR(), color.getG(), color.getB(),
+                                       player));
     }
   }
 
   // updates the game and changes the state of the preview mark
   void update() {
+    player.KeepPlaying();
     timeElapsed += 1;
     for (auto &star : stars) {
       star.Update();
     }
-
-    for (auto it = fireworks.begin(); it != fireworks.end();) {
-      it->Update();
-      ++it;
+    for (auto &firework : fireworks) {
+      (*firework).Update();
     }
     if (timeElapsed >= 200) {
       addRandomFireworks(2);
@@ -437,7 +505,7 @@ public:
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     for (auto &firework : fireworks) {
-      firework.draw();
+      (*firework).draw();
     }
     for (auto &star : stars) {
       star.Draw();
@@ -472,7 +540,7 @@ int main(void) {
     duration<double> time_span = duration_cast<duration<double>>(end - start);
     elapsed += time_span.count();
     if (time_span < desiredFrameTime * 0.01) {
-      // std::this_thread::sleep_for(desiredFrameTime - time_span);
+      std::this_thread::sleep_for(desiredFrameTime - time_span);
     }
   }
   return 0;

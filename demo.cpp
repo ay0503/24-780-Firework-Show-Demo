@@ -409,25 +409,6 @@ private:
   YsSoundPlayer::SoundData hissSound;
   int timeElapsed = 0;
 
-public:
-  Game() {
-    addFireworkColors();
-    addRandomFireworks(4);
-    stars.reserve(NUM_STARS);
-    for (int i = 0; i < NUM_STARS; ++i) {
-      double x = rand() % WIDTH;  // Random x position
-      double y = rand() % HEIGHT; // Random y position
-      float brightness =
-          (rand() % 100) / 100.0f; // Random brightness between 0 and 1
-      stars.push_back(Star(x, y, brightness));
-    }
-    hissSound.LoadWav("hiss.wav");
-    player.SetVolume(hissSound, VOLUME);
-    player.Start();
-    player.PlayOneShot(hissSound);
-    cout << "Game initialized" << endl;
-  }
-
   void addFireworkColors() {
     fireworkColors.push_back(Color(1.0f, 0.5f, 0.5f)); // Reddish
     fireworkColors.push_back(Color(0.5f, 1.0f, 0.5f)); // Greenish
@@ -438,31 +419,35 @@ public:
 
   void addRandomFireworks(int count) {
     fireworks.reserve(fireworks.size() + count);
-    for (int i = 0; i < count; ++i) { // Creates 4 fireworks
-      double startX =
-          rand() % WIDTH; // Random x position within the canvas width
-
-      double startVx;
-      if (startX < WIDTH / 2) {
-        // If on the left half, velocity is in range [0, 2]
-        startVx = rand() % 181 / 100.0;
-      } else {
-        // If on the right half, velocity is in range [-2, 0]
-        startVx = -(rand() % 181 / 100.0);
-      }
+    for (int i = 0; i < count; ++i) {
+      double startX = randomInRange(0, WIDTH);
+      double startVx =
+          (startX < WIDTH / 2) ? randomInRange(0, 2) : randomInRange(-2, 0);
       int colorIndex = rand() % fireworkColors.size();
       Color color = fireworkColors[colorIndex];
-
-      double startVy =
-          -2.5 -
-          (rand() % 100 / 100.0); // Random velocity for y in range [-3, -4]
+      double startVy = randomInRange(-2.5, -3.5);
       fireworks.push_back(new Firework(startX, HEIGHT, startVx, startVy,
                                        color.getR(), color.getG(), color.getB(),
                                        player));
     }
   }
 
-  // updates the game and changes the state of the preview mark
+public:
+  Game() {
+    addFireworkColors();
+    addRandomFireworks(4);
+    stars.reserve(NUM_STARS);
+    for (int i = 0; i < NUM_STARS; ++i) {
+      stars.push_back(Star(randomInRange(0, WIDTH), randomInRange(0, HEIGHT),
+                           randomInRange(0, 1)));
+    }
+    hissSound.LoadWav("hiss.wav");
+    player.SetVolume(hissSound, VOLUME);
+    player.Start();
+    player.PlayOneShot(hissSound);
+    cout << "Game initialized" << endl;
+  }
+
   void update() {
     player.KeepPlaying();
     timeElapsed += 1;
@@ -479,24 +464,17 @@ public:
   }
 
   void drawGradientBackground() {
-    // Top color (23, 53, 97)
-    float topR = 23.0f / 255.0f;
-    float topG = 53.0f / 255.0f;
-    float topB = 97.0f / 255.0f;
-
-    // Bottom color (7, 17, 50)
-    float bottomR = 7.0f / 255.0f;
-    float bottomG = 17.0f / 255.0f;
-    float bottomB = 50.0f / 255.0f;
-
+    const float topR = 23.0f / 255.0f, topG = 53.0f / 255.0f,
+                topB = 97.0f / 255.0f;
+    const float bottomR = 7.0f / 255.0f, bottomG = 17.0f / 255.0f,
+                bottomB = 50.0f / 255.0f;
     glBegin(GL_QUADS);
-    glColor3f(topR, topG, topB); // top color
-    glVertex2i(0, 0);            // top-left corner
-    glVertex2i(WIDTH, 0);        // top-right corner
-
-    glColor3f(bottomR, bottomG, bottomB); // bottom color
-    glVertex2i(WIDTH, HEIGHT);            // bottom-right corner
-    glVertex2i(0, HEIGHT);                // bottom-left corner
+    glColor3f(topR, topG, topB);
+    glVertex2i(0, 0);
+    glVertex2i(WIDTH, 0);
+    glColor3f(bottomR, bottomG, bottomB);
+    glVertex2i(WIDTH, HEIGHT);
+    glVertex2i(0, HEIGHT);
     glEnd();
   }
 
@@ -527,17 +505,13 @@ int main(void) {
     if (FSKEY_ESC == key) {
       break;
     }
-
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     game.update();
     game.draw();
-
     FsSwapBuffers();
     FsSleep(10);
-
     high_resolution_clock::time_point end = high_resolution_clock::now();
-    duration<double> time_span = duration_cast<duration<double>>(end - start);
+    duration<double> time_span = duration_cast<duration<double> >(end - start);
     elapsed += time_span.count();
     if (time_span < desiredFrameTime * 0.01) {
       std::this_thread::sleep_for(desiredFrameTime - time_span);

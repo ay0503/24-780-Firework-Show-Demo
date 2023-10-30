@@ -54,6 +54,8 @@
     "algorithm": "cpp",
     "deque": "cpp",
     "queue": "cpp",
-    "thread": "cpp"
+    "thread": "cpp",
+    "iostream": "cpp",
+    "chrono": "cpp"
   }
 }

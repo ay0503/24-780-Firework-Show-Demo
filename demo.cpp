@@ -9,8 +9,13 @@
 #include <vector>
 using namespace std;
 
-// TODO Audio integration: randomize wavs used
+// pattern constants
+const int PATTERN_DEFAULT = 0;
+const int PATTERN_CHRYSANTHEMUM = 1;
+const int PATTERN_SPIRAL = 2;
+const int PATTERN_TWICE = 3;
 
+// other constants
 const int WIDTH = 1024;
 const int HEIGHT = 768;
 const float VOLUME = 0.1;
@@ -18,11 +23,12 @@ const int NUM_STARS = 50;
 const int MAX_TRAIL_PARTICLES = 1000;
 const double PI = 3.1415927;
 
+// custom randRange function that returns a random double in the range [lo, hi)
 double randRange(double lo, double hi) {
-  return lo + static_cast<double>(rand()) / static_cast<double>(RAND_MAX) *
-                  (hi - lo);
+  return lo + double(rand()) / double(RAND_MAX) * (hi - lo);
 }
 
+// color class to simplify passing colors as arguments
 class Color {
 private:
   float r, g, b, a; // color components
@@ -35,14 +41,15 @@ public:
   float getB() const { return b; }
   float getA() const { return a; }
 
-  void setR(float r) { this->r = r; }
-  void setG(float g) { this->g = g; }
-  void setB(float b) { this->b = b; }
-  void setA(float a) { this->a = a; }
+  void setR(float nr) { r = nr; }
+  void setG(float ng) { g = ng; }
+  void setB(float nb) { b = nb; }
+  void setA(float na) { a = na; }
 
   void use() const { glColor4f(r, g, b, a); }
 };
 
+// trail particles are particles that only make up the trail of a main particle
 class TrailParticle {
 private:
   double x, y;      // position
@@ -60,9 +67,11 @@ public:
   double getY() const { return y; }
   double getA() const { return a; }
 
+  // they should fade the trail particles s that they disappear
   void fade(int repeat = 1) {
     for (int i = 0; i < repeat; ++i) {
-      if (rand() % 5 == 0) { // 1 in 5 chance to increase brightness
+      // 1 in 5 chance to increase brightness (flashing effect)
+      if (rand() % 5 == 0) {
         a += 0.005;
         if (a > 1)
           a = 1;
@@ -72,6 +81,7 @@ public:
     }
   }
 
+  // updates the color of a trail particle
   void updateColor() {
     r += 0.005;
     if (r > 1)
@@ -88,6 +98,7 @@ public:
       b = 0;
   }
 
+  // draws the trail particle
   void draw() const {
     glPointSize(2.5);
     glBegin(GL_POINTS);
@@ -103,8 +114,10 @@ private:
   double vx, vy;            // velocity
   double ax = 0;            // x acceleration
   double ay = 0.01;         // y acceleration
+  double at = 0.03;         // tangential acceleration
   double decaySpeed;        // number of times to fade for different particles
   double fadeSpeed = 0.003; // default increment for each fade call
+  int burstPattern;         // burst pattern
   bool burst = false;       // whether particles are from a burst
   bool hasBurst = false;    // whether particles have burst yet
 
@@ -117,10 +130,10 @@ private:
   Color color; // color of particle
 
 public:
-  // Constructor to initialize a particle with given attributes
   Particle(double x, double y, double vx, double vy, Color color,
-           bool burst = false)
-      : x(x), y(y), vx(vx), vy(vy), color(color), burst(burst) {
+           bool burst = false, int burstPattern = PATTERN_DEFAULT)
+      : x(x), y(y), vx(vx), vy(vy), color(color), burst(burst),
+        burstPattern(burstPattern) {
     decaySpeed = burst ? 9 : 7;
   }
 
@@ -135,6 +148,12 @@ public:
   void update() {
     vx += ax;
     vy += ay;
+
+    if (burstPattern == PATTERN_SPIRAL) {
+      vx += -at * sin(atan2(vy, vx));
+      vy += at * cos(atan2(vy, vx));
+    }
+
     x += vx;
     y += vy;
 
@@ -167,20 +186,20 @@ public:
     }
   }
 
+  // creates a secondary burst when needed
   void updateSecondaryBurst() {
     if (!hasSecondaryBurst && timeSincePrimaryBurst >= 60) {
-      // Create secondary particles
-      const int numParticles = 6; // Modify as needed
-      double angleBetweenParticles = 2 * PI / numParticles;
+      // create secondary particles
+      const int numParticles = 6;
+      double dtheta = 2 * PI / numParticles;
       const double initialSpeed = 0.5;
 
       for (int i = 0; i < numParticles; ++i) {
-        double angle = i * angleBetweenParticles;
+        double angle = i * dtheta;
         double vx = initialSpeed * cos(angle);
         double vy = initialSpeed * sin(angle);
 
-        Particle secondary(x, y, vx, vy, color, true);
-        secondaryParticles.push_back(secondary);
+        secondaryParticles.push_back(Particle(x, y, vx, vy, color, true));
       }
       hasSecondaryBurst = true;
     }
@@ -190,18 +209,21 @@ public:
     timeSincePrimaryBurst++;
   }
 
+  // fades the particle's color by fadeSpeed
   void fade(int repeat = 1) {
     for (int i = 0; i < repeat; ++i) {
       color.setA(color.getA() - fadeSpeed);
     }
   }
 
+  // draws secondary particles
   void drawSecondary() {
     for (auto &secondary : secondaryParticles) {
       secondary.draw();
     }
   }
 
+  // draws trail particles
   void drawTrail() {
     for (auto &particle : trailParticles) {
       particle.draw();
@@ -216,6 +238,7 @@ public:
     glVertex2d(x, y);
     glEnd();
     drawTrail();
+    drawSecondary();
   }
 };
 
@@ -239,6 +262,7 @@ public:
     player.SetVolume(burstSound, VOLUME);
   }
 
+  // updates the firework's physics and visual properties
   void update() {
     mainParticle.update();
     if (!hasBurst && mainParticle.getVy() >= 0) {
@@ -246,20 +270,16 @@ public:
       int choice = rand() % 4;
       switch (choice) {
       case 0:
-        cout << "normal" << endl;
         burst(); // normal
         break;
       case 1:
-        cout << "chrysanthemum" << endl;
         burst(); // chrysanthemum
         hasBurst = false;
         break;
       case 2:
-        cout << "spiral" << endl;
         burstSpiral(); // spiral
         break;
       case 3:
-        cout << "twice" << endl;
         burstTwice(); // delayed twice
         break;
       }
@@ -273,7 +293,9 @@ public:
     }
   }
 
-  void createBurst(int numParticles, double initialSpeed) {
+  // creates a burst with numParticles and initialSpeed
+  void createBurst(int numParticles, double initialSpeed,
+                   int burstPattern = PATTERN_DEFAULT) {
     double dtheta = 2 * PI / numParticles;
     int randomness = 2 * PI / 90; // 10 degrees randomness
 
@@ -289,47 +311,22 @@ public:
       double vy = initialSpeed * sin(angle);
 
       Particle burstParticle(mainParticle.getX(), mainParticle.getY(), vx, vy,
-                             Color(burstR, burstG, burstB), true);
+                             Color(burstR, burstG, burstB), true, burstPattern);
       burstParticles.push_back(burstParticle);
     }
   }
 
-  void burst() {
-    createBurst(12, 1.0); // 12 particles with speed 1.0
-  }
+  // normal burst
+  void burst() { createBurst(12, 1.0, PATTERN_DEFAULT); }
 
   void burstTwice() {
-    burst();
+    createBurst(12, 1.0, PATTERN_TWICE);
     for (auto &particle : burstParticles) {
       particle.scheduleBurst();
     }
   }
 
-  void burstSpiral() {
-    const int numParticles = 12;
-    const double initialSpeed = 1.0;
-    double dtheta = 2 * PI / numParticles;
-    int randomness = 2 * PI / 90; // 10 degrees randomness
-
-    for (int i = 0; i < numParticles; ++i) {
-      double angle = i * dtheta + (rand() % randomness - randomness / 2);
-
-      // radial velocities (outward)
-      double vx = initialSpeed * cos(angle);
-      double vy = initialSpeed * sin(angle);
-
-      // tangential velocities (perpendicular to radial, for rotation)
-      double tvx = -initialSpeed * sin(angle);
-      double tvy = initialSpeed * cos(angle);
-
-      vx += tvx * 0.8; // 1:2 ratio for radial and tangential velocities
-      vy += tvy * 0.8;
-
-      Particle burstParticle(mainParticle.getX(), mainParticle.getY(), vx, vy,
-                             color, true);
-      burstParticles.push_back(burstParticle);
-    }
-  }
+  void burstSpiral() { createBurst(12, 1.0, PATTERN_SPIRAL); }
 
   void secondaryBurst(double x, double y) {
     const int numParticles = 12;
@@ -348,11 +345,11 @@ public:
 
   bool hasReachedBottom() const { return mainParticle.getY() > HEIGHT; }
 
+  // draws the all particles of the firework
   void draw() {
     mainParticle.draw();
     for (auto &particle : burstParticles) {
       particle.draw();
-      particle.drawSecondary();
     }
   }
 };
@@ -360,33 +357,32 @@ public:
 class Star {
 private:
   double x, y;        // position of star
-  float brightness;   // brightness of star
-  float twinkleSpeed; // speed of brightness oscillation
+  float a;            // brightness of star
+  float twinkleSpeed; // speed of a oscillation
 
 public:
-  Star(double x, double y, float brightness)
-      : x(x), y(y), brightness(brightness) {
-    twinkleSpeed = ((rand() % 10) / 1000.0f -
-                    0.005f); // Random speed between -0.01 and 0.01
+  Star(double x, double y, float a) : x(x), y(y), a(a) {
+    twinkleSpeed = randRange(-0.01, 0.01); // random speed between -0.01 and 0.01
   }
 
-  // update brightness for twinkle effect
+  // update a for twinkle effect
   void update() {
-    brightness += twinkleSpeed;
-    if (brightness > 1.0f || brightness < 0.0f) {
-      twinkleSpeed = -twinkleSpeed; // Reverse the direction when hitting bounds
+    a += twinkleSpeed;
+    if (a > 1.0f || a < 0.0f) {
+      twinkleSpeed *= -1;
     }
   }
 
+  // draws the star
   void draw() const {
-    glColor4f(1.0, 1.0, 1.0, brightness); // White color with given brightness
+    glColor4f(1.0, 1.0, 1.0, a); // white color
     glBegin(GL_POINTS);
     glVertex2d(x, y);
     glEnd();
   }
 };
 
-class Game {
+class Demo {
 private:
   vector<Firework *> fireworks;       // vector of all fireworks
   vector<Star> stars;                 // vector of all stars
@@ -415,14 +411,15 @@ private:
   }
 
 public:
-  Game() {
-    addFireworkColors();
+  Demo() {
+    addFireworkColors(); // initialize firework colors
     addRandomFireworks(6);
-    stars.reserve(NUM_STARS);
+    stars.reserve(NUM_STARS); // reserve memory to avoid resizing overhead
     for (int i = 0; i < NUM_STARS; ++i) {
       stars.push_back(
           Star(randRange(0, WIDTH), randRange(0, HEIGHT), randRange(0, 1)));
     }
+    // sound
     hissSound.LoadWav("hiss.wav");
     player.SetVolume(hissSound, VOLUME);
     player.Start();
@@ -452,15 +449,13 @@ public:
   }
 
   void drawGradientBackground() {
-    const Color topColor =
-        Color(23.0f / 255.0f, 53.0f / 255.0f, 97.0f / 255.0f);
-    const Color bottomColor =
-        Color(7.0f / 255.0f, 17.0f / 255.0f, 50.0f / 255.0f);
     glBegin(GL_QUADS);
-    topColor.use();
+    // top color
+    Color(23.0f / 255.0f, 53.0f / 255.0f, 97.0f / 255.0f).use();
     glVertex2i(0, 0);
     glVertex2i(WIDTH, 0);
-    bottomColor.use();
+    // bottom color
+    Color(7.0f / 255.0f, 17.0f / 255.0f, 50.0f / 255.0f).use();
     glVertex2i(WIDTH, HEIGHT);
     glVertex2i(0, HEIGHT);
     glEnd();
@@ -482,16 +477,15 @@ public:
 int main(void) {
   srand(time(0));
   FsOpenWindow(0, 0, WIDTH, HEIGHT, 1);
-  Game game;
-  while (true) {
+  Demo app;
+  while (true) { // main app loop
     FsPollDevice();
-    int key = FsInkey();
-    if (FSKEY_ESC == key) {
+    if (FSKEY_ESC == FsInkey()) {
       break;
     }
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    game.update();
-    game.draw();
+    app.update();
+    app.draw();
     FsSwapBuffers();
     FsSleep(10);
   }

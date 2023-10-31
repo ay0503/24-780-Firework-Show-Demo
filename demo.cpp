@@ -362,7 +362,8 @@ private:
 
 public:
   Star(double x, double y, float a) : x(x), y(y), a(a) {
-    twinkleSpeed = randRange(-0.01, 0.01); // random speed between -0.01 and 0.01
+    twinkleSpeed =
+        randRange(-0.01, 0.01); // random speed between -0.01 and 0.01
   }
 
   // update a for twinkle effect

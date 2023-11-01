@@ -1,6 +1,6 @@
-#include "fssimplewindow.h"
-#include "yspng.h"
-#include "yssimplesound.h"
+#include "libraries/fssimplewindow.h"
+#include "libraries/yspng.h"
+#include "libraries/yssimplesound.h"
 #include <cstdlib>
 #include <iostream>
 #include <math.h>

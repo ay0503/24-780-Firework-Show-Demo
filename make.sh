@@ -25,17 +25,18 @@ fi
 mkdir -p test.app/Contents/MacOS
 
 # Compiling the objective-C file
-clang -c fssimplewindowobjc.m
-clang -c yssimplesound.m
+clang -c fssimplewindowobjc.m -o fssimplewindowobjc.o
+clang -c yssimplesound.m -o yssimplesound.o
+clang++ -c yspng.cpp -o yspng.o
 
 # Check if the compilation was successful
 if [[ $? -ne 0 ]]; then
-    echo "Compilation of Objective-C files failed."
+    echo "Compilation of files failed."
     exit 1
 fi
 
 # Compiling the C++ files with the frameworks
-clang++ "$SCRIPT_NAME" yssimplesound.cpp yssimplesound.o fssimplewindowcpp.cpp fssimplewindowobjc.o -framework Cocoa -framework OpenGL -framework AVFoundation -o test.app/Contents/MacOS/exe
+clang++ "$SCRIPT_NAME" yspng.o yssimplesound.o yssimplesound.cpp fssimplewindowobjc.o fssimplewindowcpp.cpp -framework Cocoa -framework OpenGL -framework AVFoundation -o test.app/Contents/MacOS/exe
 
 # Check if the final compilation was successful
 if [[ $? -ne 0 ]]; then
